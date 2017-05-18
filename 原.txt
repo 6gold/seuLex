@@ -1,346 +1,339 @@
 //求闭包
-void dfa::Eclosure(set<node*>& x)   
+void DFA::getEclosure(set<Node *> & eSet)
 {
-	queue<node*> findQueue;
-
-	for (set<node*>::iterator nodePointer = x.begin();nodePointer !=x.end();nodePointer++)
+	queue<Node*> findQueue;
+	for (set<Node *>::iterator iter = eSet.begin(); iter != eSet.end(); iter++)
 	{
-	  findQueue.push(*nodePointer);	
-		
+		findQueue.push(*iter);
 	}
 
-    node* currentNode;
-	do 
+	Node* currentNode;
+	do
 	{
 		currentNode = findQueue.front();
-		
-		myMul::iterator mit =  currentNode->outstate.find(1);
-		for (int i=0;i<currentNode->outstate.count(1);i++ )
+		multimap<char, Node*>::iterator iter2 = currentNode->next.find(1);
+		for (int i = 0; i < currentNode->next.count(1); i++)
 		{
-			if (x.find((*mit).second) == x.end())
+			if (eSet.find((*iter2).second) == eSet.end())
 			{
-				x.insert((*mit).second);
-				findQueue.push((*mit).second);
+				eSet.insert((*iter2).second);
+				findQueue.push((*iter2).second);
 			}
-			mit++;
+			iter2++;
 		}
-
 		findQueue.pop();
-
 	} while (!findQueue.empty());
 }
 
 //DFA构造
-dfa::dfa(node* st)
+DFA::DFA(Node *startNode)
 {
+	cout << "进入DFA构造函数" << endl;
+	cout << "起始结点的后继结点：" << startNode->next.size() << endl;
+	set<Node*> i0;
+	queue< set<Node*> > nodeQueue;
 
-	set<node*> i0;
-	queue< set<node*> > nodeQueue;
-	
-	i0.insert(st);
-    Eclosure(i0);
+	i0.insert(startNode);
+	getEclosure(i0);
 	nodeQueue.push(i0);
-	
-	start = new node(0,st->accepted);
 
-	node* currentNode = start;
+	start = new Node(0, startNode->terminalTag);
 
-	set<node*>  subset;
-	int xuhao=1;
-	set<node*> temp;
-	multimap<char,node*>  row;
+	Node* currentNode = start;
+
+	set<Node*>  subset;
+	int xuhao = 1;
+	set<Node*> temp;
+	multimap<char, Node*>  row;
 	set<char> zifuji;
-	multimap<set<node*> , node*> suoyin;/////{q0}->I0
-	
+	multimap<set<Node*>, Node*> suoyin;/////{q0}->I0
 
-    suoyin.insert(pair<set<node*> , node*>(i0,start));
 
-    nodeVec.push_back(*start);
+	suoyin.insert(pair<set<Node*>, Node*>(i0, start));
+
+	dfaNodes.push_back(*start);
 
 	//////////利用表格确定化过程/////////////////////////
 
-	
-	do{
-			row.clear();
-			temp = nodeQueue.front();
-            Eclosure(temp);
-   			currentNode=(*(suoyin.find(temp))).second;
-			zifuji.clear();
-			
-			for (set<node*>::iterator nodePointer = temp.begin();nodePointer !=temp.end();nodePointer++)
+
+	do {
+		row.clear();
+		temp = nodeQueue.front();
+		getEclosure(temp);
+		currentNode = (*(suoyin.find(temp))).second;
+		zifuji.clear();
+
+		for (set<Node *>::iterator nodePointer = temp.begin(); nodePointer != temp.end(); nodePointer++)
+		{
+			//         cout<<(*nodePointer)->label<<endl;
+			for (multimap<char, Node*>::iterator mit = (*nodePointer)->next.begin(); mit != (*nodePointer)->next.end(); mit++)
 			{
-            //         cout<<(*nodePointer)->label<<endl;
-					for (myMul::iterator mit =  (*nodePointer)->outstate.begin();mit!=(*nodePointer)->outstate.end();mit++ )
+				if (((*mit).first) != 1)  //not e-edge
 				{
-					if (((*mit).first)!=1 )  //not e-edge
+					row.insert(pair<char, Node*>((*mit).first, (*mit).second));///copy multimap
+					zifuji.insert((*mit).first);
+				}
+			}
+		}
+		cout << "字符集大小：" << zifuji.size() << endl;
+
+		//////////  划分子集  //////////             
+		multimap<char, Node*>::iterator mit3;
+
+		multimap<char, Node*> m1;
+		m1.clear();
+		for (set<char>::iterator ziit = zifuji.begin(); ziit != zifuji.end(); ziit++)
+		{
+
+			subset.clear();
+			mit3 = row.find(*ziit);
+			for (int i = 0; i<row.count(*ziit); i++)
+			{
+				subset.insert((*mit3).second);
+				mit3++;
+			}
+
+			getEclosure(subset);
+			if (suoyin.find(subset) == suoyin.end())
+			{
+				nodeQueue.push(subset);
+
+				bool isaccepted = false;
+				int nfaPoint;
+				for (set<Node*>::iterator nodePointer = subset.begin(); nodePointer != subset.end(); nodePointer++)
+				{
+					if ((*nodePointer)->terminalTag)
 					{
-                      row.insert(pair<char,node*>((*mit).first,(*mit).second));///copy multimap
-                      zifuji.insert((*mit).first);
+						/////////只要一个是终态，子集所确定的新节点就是终态/////
+						isaccepted = true;
+						nfaPoint = (*nodePointer)->stateLabel;
+						break;
 					}
-                     					
 				}
 
-			}
-
-			//////////  划分子集  //////////             
-			multimap<char,node*>::iterator mit3;
-
-			myMul m1;
-			m1.clear();
-			for(set<char>::iterator ziit=zifuji.begin();ziit!=zifuji.end();ziit++)
-			{
-				   
-				   subset.clear();
-                   mit3=row.find(*ziit);
-				for (int i=0;i<row.count(*ziit);i++)
+				Node* newNode = new  Node(xuhao, isaccepted);
+				if (isaccepted)
 				{
-					subset.insert((*mit3).second);
-					mit3++;
+					map<int, string>::iterator mit4 = nfaTerState2Action.find(nfaPoint);
+					if (nfaTerState2Action.count(nfaPoint) != 0)
+					{
+						dfaTerState2Action.insert(pair<int, string>(xuhao, (*mit4).second));
+
+					}
+
 				}
-				
-				Eclosure(subset);
-                if (suoyin.find(subset) == suoyin.end())
-                {
-                     nodeQueue.push(subset);
+				xuhao++;
+				suoyin.insert(pair<set<Node*>, Node*>(subset, newNode));
 
-					 bool isaccepted=false;
-					 int nfaPoint;
-                     for (set<node*>::iterator nodePointer = subset.begin();nodePointer !=subset.end();nodePointer++)
-					 {
-						 if ((*nodePointer)->accepted)
-						 {  
-							 /////////只要一个是终态，子集所确定的新节点就是终态/////
-							 isaccepted=true;
-                             nfaPoint = (*nodePointer)->label;
-							 break;
-						 }
-					 }
-
-					 node* newNode = new  node(xuhao,isaccepted);
-					 if (isaccepted)
-					 {
-						 map<int,string>::iterator mit4 = nfaterstatetoaction.find(nfaPoint);
-						 if(nfaterstatetoaction.count(nfaPoint) != 0)
-						 {
-							  TerStateActionTable.insert(pair<int,string>(xuhao,(*mit4).second));
-
-						 }
-						
-					 }
-					 xuhao++;
-					 suoyin.insert(pair<set<node*> , node*>(subset,newNode));
-					 
-                }
-                
-			
-				if (subset.size()!=0)
-				{	
-				
-				m1.insert(pair<char,node*>(*ziit,(*(suoyin.find(subset))).second));			
-              
-				}
 			}
 
-			currentNode->setNextState(m1);
 
-			myMul::iterator mit1 = currentNode->outstate.begin();
-			for (int j=0;j<currentNode->outstate.size();j++)
+			if (subset.size() != 0)
 			{
-				mit1++;
-			}
 
-			nodeVec.push_back(*currentNode);
-			nodeQueue.pop();
-			
-	}
-	while(!nodeQueue.empty());
+				m1.insert(pair<char, Node*>(*ziit, (*(suoyin.find(subset))).second));
+
+			}
+		}
+
+		cout << "m1大小：" << m1.size() << endl;
+		currentNode->setOutStates(m1);
+
+		multimap<char, Node*>::iterator mit1 = currentNode->next.begin();
+		for (int j = 0; j<currentNode->next.size(); j++)
+		{
+			mit1++;
+		}
+
+
+		dfaNodes.push_back(*currentNode);
+		cout << "当前DFA node 大小：" << dfaNodes.size() << endl;
+		nodeQueue.pop();
+
+	} while (!nodeQueue.empty());
 }
 
 //DFA最小化
-void Minidfa(vector<node> dfanode)//dfanode的下标与dfa状态相同
-{     
-    dfanode.erase(dfanode.begin());
+void minimizeDFA(vector<Node> dfaNodes)
+{
+	dfaNodes.erase(dfaNodes.begin());
+
 	//结果保存，采用自顶向下的方法进行子集的划分
-	vector< set<int> > lastset;
-	//vector< set<int> >resdfa;
+	vector< set<int> > lastset;			//最后最小化之后的划分
 	deque< set<int> > flag;
-	vector< set<int> > testset;
+	vector< set<int> > testset;			//?????
 	set<int> currentset;
 	set<int>::iterator setit;
-	int start=0;                     //标记起始节点所在的子集在lastset中的索引
-    set<int> t;
-    t.insert(start);
-	lastset.push_back(t);    //the start node set
-	testset.push_back(t);     //test whether which set the current node move by ch;
-	GetNonTerminalset(dfanode,flag,testset);  
+	int start = 0;						//标记起始节点所在的子集在lastset中的索引
+	set<int> t;							//存放索引号？
+	t.insert(start);
+	lastset.push_back(t);				//the start node set
+	testset.push_back(t);				//test whether which set the current node move by ch;
+	getNonTerSet(dfaNodes, flag, testset);
 	//将terminal 按照其返回值不同进行分解成不同的集合
-    partitionter(dfanode,flag,testset);
-	int i=0;
-	cout<<"circle num\tdeque size\t test set size\tfinal set size"<<endl;
-	while(!flag.empty())
+	partitionter(dfaNodes, flag, testset);
+	int i = 0;
+	cout << "circle num\tdeque size\t test set size\tfinal set size" << endl;
+	while (!flag.empty())
 	{
-		cout<<i++<<"\t"<<flag.size()<<"\t"<<testset.size()<<"\t"<<lastset.size()<<endl;
-		currentset=flag.front();
-		int cursize=currentset.size();
+		cout << i++ << "\t" << flag.size() << "\t" << testset.size() << "\t" << lastset.size() << endl;
+		currentset = flag.front();
+		int cursize = currentset.size();
 		flag.pop_front();
-		if (currentset.size()<=1)  //只有一个状态的节点不能再进行子集的划分
+		if (currentset.size() <= 1)  //只有一个状态的节点不能再进行子集的划分
 		{
 			lastset.push_back(currentset);
 			continue;
 		}
-        
-        bool terminal=false;//用于判断currentset是不是最终的终结状态;如果经过所有的字符后他产生的自己数为0则表示可以认为是终态
 
-		for (set<char>::iterator charit=char_set.begin();charit!=char_set.end();charit++)
+		bool terminal = false;//用于判断currentset是不是最终的终结状态;如果经过所有的字符后他产生的自己数为0则表示可以认为是终态
+
+		for (set<char>::iterator charit = dfaCharSet.begin(); charit != dfaCharSet.end(); charit++)
 		{
 			if (terminal)
 			{
 				break;
 			}
-			char ch=(*charit);
-			map<int,set<int> >tempres;
+			char ch = (*charit);
+			map<int, set<int> >tempres;
 			tempres.clear();
-			int setid=-100;
-			for (set<int>::iterator node_it=currentset.begin();node_it!=currentset.end();node_it++)
+			int setid = -100;
+			for (set<int>::iterator node_it = currentset.begin(); node_it != currentset.end(); node_it++)
 			{
-				node curnode;
-				curnode=dfanode[(*node_it)];
-				int curstate=curnode.GetState();
-				multimap<char,node*> mymulmap;
-				mulit mulmapit;
-				mymulmap=curnode.getMultimap();
-				mulmapit=mymulmap.find(ch);
-				int mycount=mymulmap.count(ch);
+				Node curnode;
+				curnode = dfaNodes[(*node_it)];
+				int curstate = curnode.getStateLabel();
+				multimap<char, Node*> mymulmap;
+				multimap<char, Node*>::iterator mulmapit;
+				mymulmap = curnode.next;
+				mulmapit = mymulmap.find(ch);
+				int mycount = mymulmap.count(ch);
 				if (mycount<1)     //当前节点经过ch无后继结点
 				{
-					setid=-1;
-					addtoset1(tempres,curstate,setid);
+					setid = -1;
+					addtoset1(tempres, curstate, setid);
 				}
 				else
 				{
-					node* nextnode=mulmapit->second;
-					int state1=nextnode->GetState();
-					setid=getSetid(state1,testset,0);
-					addtoset1(tempres,curstate,setid);
-					
+					Node* nextnode = mulmapit->second;
+					int state1 = nextnode->getStateLabel();
+					setid = getSetId(state1, testset, 0);
+					addtoset1(tempres, curstate, setid);
 				}
 			}
 			//经过一个字符后可能有新的子集产生，先与原来的比较，如果是新的则testset中
-			map<int,set<int> >::iterator int_set_mapit;
+			map<int, set<int> >::iterator int_set_mapit;
 			set<int> int_set;
 			if (tempres.size()>1)
 			{
-				deletefromset(testset,currentset);
-				for (int_set_mapit=tempres.begin();int_set_mapit!=tempres.end();int_set_mapit++)
+				deletefromset(testset, currentset);
+				for (int_set_mapit = tempres.begin(); int_set_mapit != tempres.end(); int_set_mapit++)
 				{
-					int_set=int_set_mapit->second;
-					int setsize=int_set.size();
+					int_set = int_set_mapit->second;
+					int setsize = int_set.size();
 					if (int_set.size()>0)
 					{
 						flag.push_back(int_set);
 						testset.push_back(int_set);
-						terminal=true;
+						terminal = true;
 					}
 				}
 			}
-			
+
 		}
 		if (!terminal)
 		{
 			lastset.push_back(currentset);
 		}
-		
 	}
-	for (int p=0;p<lastset.size();p++)
+	for (int p = 0; p<lastset.size(); p++)
 	{
-		set<int> setint=lastset[p];
-		cout<<"The ";
-		cout<<p;
-		cout<<" subset has nodes:"<<endl;
-		for (set<int>::iterator printit=setint.begin();printit!=setint.end();printit++)
+		set<int> setint = lastset[p];
+		cout << "The ";
+		cout << p;
+		cout << " subset has nodes:" << endl;
+		for (set<int>::iterator printit = setint.begin(); printit != setint.end(); printit++)
 		{
-			cout<<(*printit)<<"\t";
+			cout << (*printit) << "\t";
 		}
-		cout<<endl;
+		cout << endl;
 	}
 	//以上完成了对大的状态集合进行子集的划分，下面由这些子集构造最终dfa的节点;
-	cout<<"subset partition finished....."<<endl;
-	generateDFA(lastset,dfanode,start);
+	cout << "subset partition finished....." << endl;
+	generateDFA(lastset, dfaNodes, start);
 }
 
 //generateDFA
-void generateDFA(vector< set<int> >vecset,vector<node> dfanode,int start)//根据划分的子集和dfanode 构造最小的dfa，start为dfa起始状态的子集索引号
+void generateDFA(vector< set<int> >vecset, vector<Node> dfanode, int start)
 {
 	//用vecset的下标表示mindfa的状态 
 	bool acceptted;
-	node* tempnode;
-    //vector<node*> mymindfa;
-	node my=dfanode[0];
-  
-	
+	Node* tempnode;
+	//vector<node*> mymindfa;
+	Node my = dfanode[0];
+
+
 	deque<int> states;//保存lastdfa中对应dfanode中的状态
-	//先生成节点
-	for (int i=0;i<vecset.size();i++)
+					  //先生成节点
+	for (int i = 0; i<vecset.size(); i++)
 	{
-		int mystate=-100;                          
-		acceptted=isterofmin(vecset[i],dfanode,mystate);
-        tempnode=new node(i,acceptted);
+		int mystate = -100;
+		acceptted = isterofmin(vecset[i], dfanode, mystate);
+		tempnode = new Node(i, acceptted);
 		lastdfa.push_back(*tempnode);
-		if (mystate!=-100)                //mystate 对应于TerStateActionTable中的int
-		{                    
+		if (mystate != -100)                //mystate 对应于TerStateActionTable中的int
+		{
 			states.push_back(mystate);
 		}
-		
 	}
-    
 
 	//添加后继状态
 	int nextstate;
 	int setid;
-    for (int k=0;k<lastdfa.size();k++)
-    {
-		node* temp=&(lastdfa[k]);
+	for (int k = 0; k<lastdfa.size(); k++)
+	{
+		Node* temp = &(lastdfa[k]);
 		//对应dfa的返回值与minidfa的返回值
-		map<int,string>::iterator mapintstring;
-		if (temp->IsAccepted()) //终态对应
+		map<int, string>::iterator mapintstring;
+		if (temp->getTerminalTag()) //终态对应
 		{
-			mapintstring=TerStateActionTable.find(states.front());
-			
-			if (mapintstring!=TerStateActionTable.end())
+			mapintstring = dfaTerState2Action.find(states.front());
+
+			if (mapintstring != dfaTerState2Action.end())
 			{
-				mindfareturn.insert(make_pair(temp->GetState(),mapintstring->second));
+				mindfareturn.insert(make_pair(temp->getStateLabel(), mapintstring->second));
 			}
 			else
 			{
-				cout<<states.front()<<endl;
-				cout<<"dfa terminal error!"<<endl;
+				cout << states.front() << endl;
+				cout << "dfa terminal error!" << endl;
 			}
 			states.pop_front();
 		}
-		for (set<char>::iterator char_it=char_set.begin();char_it!=char_set.end();char_it++)
+		for (set<char>::iterator char_it = dfaCharSet.begin(); char_it != dfaCharSet.end(); char_it++)
 		{
-			char ch=(*char_it);
-			set<int> tempset=vecset[k];
-			for (set<int>::iterator set_it=tempset.begin();set_it!=tempset.end();set_it++)
+			char ch = (*char_it);
+			set<int> tempset = vecset[k];
+			for (set<int>::iterator set_it = tempset.begin(); set_it != tempset.end(); set_it++)
 			{
-				int myte=*set_it;
-				node mytempnode=dfanode[(*set_it)];
-				multimap<char,node*> mul=mytempnode.getMultimap();
-				mulit mult_mapit=mul.find(ch);
-				if (mult_mapit!=mul.end())
+				int myte = *set_it;
+				Node mytempnode = dfanode[(*set_it)];
+				multimap<char, Node*> mul = mytempnode.next;
+				multimap<char, Node*>::iterator mult_mapit = mul.find(ch);
+				if (mult_mapit != mul.end())
 				{
-					nextstate=(mult_mapit->second)->GetState();
-                    setid=getSetid(nextstate,vecset,0);
+					nextstate = (mult_mapit->second)->getStateLabel();
+					setid = getSetId(nextstate, vecset, 0);
 					if (setid<0)
 					{
-						cout<<"the error found in k= "<<k<<endl;
-						cout<<"error found in check nextid"<<endl;
+						cout << "the error found in k= " << k << endl;
+						cout << "error found in check nextid" << endl;
 						return;
 					}
-					temp->Addoutstate(ch,&(lastdfa[setid]));
+					temp->addOutState(ch, &(lastdfa[setid]));
 					break;
 				}
 			}
 		}
-    }
+	}
 }
