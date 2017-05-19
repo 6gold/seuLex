@@ -1,0 +1,26 @@
+%{
+#include <iostream>
+#include <string>
+#include <stdio.h>
+#include "yytype.h"
+%}
+digit	[0-9]
+letter	[a-zA-Z]
+id	{letter}[{letter}|{digit}]*
+num	{digit}{digit}*
+%%
+"int"		{return INT;}
+{num}		{return NUMBER;}
+{id}		{return IDENTIFIER;}
+"+="		{return ADD_ASSIGN;}
+"-="		{return SUB_ASSIGN;}
+%%
+void main()
+{
+        string s;
+        while(true){
+            cin>>s;
+            cout<<analysis(s)<<endl;
+        }
+	return ;
+}
